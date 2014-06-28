@@ -71,7 +71,7 @@
         [TestCase(@"http://path1:23512/path2", @"../path3/path4", Result = @"http://path1:23512/path3/path4")]
         public string ResolveHttpPath(string basePath, string relativePath)
         {
-            var result = PathResolver.ResolveHttpPath(basePath, relativePath);
+            var result = PathResolver.ResolveUrlPath(basePath, relativePath);
             return result;
         }
 
