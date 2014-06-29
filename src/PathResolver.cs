@@ -6,6 +6,15 @@
 
     public class PathResolver
     {
+        #region Exception Messages
+
+        private const string InvalidPathStyleExceptionMessage = "Path Style not supported";
+        private const string LinuxErrorExceptionMessage = "Invalid Path format. Path must start with a single /";
+        private const string UncErrorExceptionMessage = "Invalid Path format. Path must start with \\";
+        private const string RelativePathOutOfBounds = "Relative path out of bounds";
+
+        #endregion Exception Messages
+
         private readonly IDictionary<PathStyle, Func<string, string, string>> pathResolver;
 
         public PathResolver()
@@ -51,6 +60,57 @@
         }
 
         /// <summary>
+        /// Resolves a relative path to a linux style path, where the seperators
+        /// are forward slashes and the root of the path is a forward slash
+        /// </summary>
+        /// <param name="basePath">Intial source or starting path</param>
+        /// <param name="relativePath">Relative path pointing to target</param>
+        /// <returns>A full linux style path to target based on the resolved relative path</returns>
+        public static string ResolveLinuxPath(string basePath, string relativePath)
+        {
+            if (!basePath.StartsWith("/"))
+            {
+                throw new Exception(LinuxErrorExceptionMessage);
+            }
+
+            // Check to see if the basepath is more than just /
+            var path = basePath.Length > 1 ? basePath.Substring(1) : string.Empty;
+
+            var newPath = BuildNewPath(path, relativePath);
+
+            // Append and return the new path onto the root
+            return string.Format("/{0}", string.Join("/", newPath));
+        }
+
+        /// <summary>
+        /// Resolves a relative path to a unc path
+        /// </summary>
+        /// <param name="basePath">Intial source or starting path</param>
+        /// <param name="relativePath">Relative path pointing to target</param>
+        /// <returns>A full unc path to target based on the resolved relative path</returns>
+        public static string ResolveUncPath(string basePath, string relativePath)
+        {
+            if (!basePath.StartsWith(@"\\"))
+            {
+                throw new Exception(UncErrorExceptionMessage);
+            }
+
+            // Find the first slash after the intial \\
+            var pos = basePath.IndexOf(@"\", 2, StringComparison.Ordinal);
+
+            // Get the root of the unc path
+            var root = pos > 0 ? basePath.Substring(0, pos) : basePath;
+
+            // Get the rest of the path minus the unc root
+            var path = pos > 0 ? basePath.Substring(pos) : string.Empty;
+
+            var newPath = BuildNewPath(path, relativePath);
+
+            // Return the new path or just the root if newPath was empty
+            return newPath.Any() ? string.Format(@"{0}\{1}", root, string.Join(@"\", newPath)) : root;
+        }
+
+        /// <summary>
         /// Resolves a path relative to a url style format such as http://, ftp://
         /// Port numbers are also supported on the domain
         /// </summary>
@@ -75,57 +135,6 @@
 
             // Return the new path or just the root if newPath was empty
             return newPath.Any() ? string.Format("{0}/{1}", root, string.Join("/", newPath)) : root;
-        }
-
-        /// <summary>
-        /// Resolves a relative path to a linux style path, where the seperators
-        /// are forward slashes and the root of the path is a forward slash
-        /// </summary>
-        /// <param name="basePath">Intial source or starting path</param>
-        /// <param name="relativePath">Relative path pointing to target</param>
-        /// <returns>A full linux style path to target based on the resolved relative path</returns>
-        public static string ResolveLinuxPath(string basePath, string relativePath)
-        {
-            if (!basePath.StartsWith("/"))
-            {
-                throw new Exception("Invalid Path format. Path must start with a single /");
-            }
-
-            // Check to see if the basepath is more than just /
-            var path = basePath.Length > 1 ? basePath.Substring(1) : string.Empty;
-
-            var newPath = BuildNewPath(path, relativePath);
-
-            // Append and return the new path onto the root
-            return string.Format("/{0}", string.Join("/", newPath));
-        }
-
-        /// <summary>
-        /// Resolves a relative path to a unc path
-        /// </summary>
-        /// <param name="basePath">Intial source or starting path</param>
-        /// <param name="relativePath">Relative path pointing to target</param>
-        /// <returns>A full unc path to target based on the resolved relative path</returns>
-        public static string ResolveUncPath(string basePath, string relativePath)
-        {
-            if (!basePath.StartsWith(@"\\"))
-            {
-                throw new Exception("Invalid Path format. Path must start with \\");
-            }
-
-            // Find the first slash after the intial \\
-            var pos = basePath.IndexOf(@"\", 2, StringComparison.Ordinal);
-
-            // Get the root of the unc path
-            var root = pos > 0 ? basePath.Substring(0, pos) : basePath;
-
-            // Get the rest of the path minus the unc root
-            var path = pos > 0 ? basePath.Substring(pos) : string.Empty;
-
-            var newPath = BuildNewPath(path, relativePath);
-
-            // Return the new path or just the root if newPath was empty
-            return newPath.Any() ? string.Format(@"{0}\{1}", root, string.Join(@"\", newPath)) : root;
         }
 
         /// <summary>
@@ -159,6 +168,11 @@
                 if (relativeSegment == "..")
                 {
                     // Remove a path segment from the base path
+                    if (basePathSegments.Count == 0)
+                    {
+                        throw new Exception(RelativePathOutOfBounds);
+                    }
+
                     basePathSegments.Remove(basePathSegments[basePathSegments.Count - 1]);
                 }
                 else
@@ -192,7 +206,7 @@
             // If not pathstyle if found then throw an exception
             if (0 == pathStyle)
             {
-                throw new Exception("Path Style not supported");
+                throw new Exception(InvalidPathStyleExceptionMessage);
             }
 
             return pathStyle;
